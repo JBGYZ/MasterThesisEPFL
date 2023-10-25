@@ -100,7 +100,12 @@ class TransformerEncoder(nn.Module):
     """
     def __init__(self, num_layers, d_model, nhead, dim_feedforward, args, ch, input_dim, num_outputs, dropout=0.1, reducer_type="fc"):
         super(TransformerEncoder, self).__init__()
-        self.pos_encoder = PositionalEncoding(d_model, dropout)
+        if args.pos_encoder_type == "absolute":
+            self.pos_encoder = PositionalEncoding(d_model, dropout)
+        elif args.pos_encoder_type == "learned":
+            self.pos_encoder = LearnedPositionalEncoding(d_model)
+        else:  
+            raise NameError("Specify a valid positional encoder type in [absolute, learned]")
         # Stack multiple encoder layers
         self.layers = nn.ModuleList([
             TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)

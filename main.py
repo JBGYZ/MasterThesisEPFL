@@ -153,6 +153,7 @@ def main():
     )
 
     ## Transformer params ##
+    parser.add_argument("--pos_encoder_type", type=str, default="absolute")
     parser.add_argument("--nhead", type=int, default=4)
     parser.add_argument("--dim_feedforward", type=int, default=256)
     parser.add_argument("--reducer_type", type=str, default="fc")

@@ -159,6 +159,8 @@ def main():
     parser.add_argument("--reducer_type", type=str, default="fc")
     parser.add_argument("--reducer_layers", type=int, default=1)
     parser.add_argument("--reducer_size", type=int, default=64)
+    parser.add_argument("--embedding_type", type=str, default="none")
+    parser.add_argument("--scaleup_dim", type=int, default=64)
 
     ## Auto-regression with Transformers ##
     parser.add_argument("--pmask", type=float, default=0.2)  # not for now

@@ -119,8 +119,12 @@ class TransformerEncoder(nn.Module):
             out_dim=num_outputs,
             bias=args.bias,
             )
-        else:
+        elif reducer_type == "linear":
+            self.reducer = nn.Linear(ch * input_dim, num_outputs)
+        elif reducer_type == "none":
             self.reducer = OutputReducer()
+        else:
+            raise NameError("Specify a valid reducer type in [fc, linear, none]")
         
     def forward(self, src, src_mask=None):
         src = src.permute(2,0,1)
@@ -128,5 +132,6 @@ class TransformerEncoder(nn.Module):
         for layer in self.layers:
             src = layer(src, src_mask)
         src = src.permute(1,2,0)
+        src = src.flatten(1)
         src = self.reducer(src)
         return src

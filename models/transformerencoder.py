@@ -1,9 +1,25 @@
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
 import math
 
 from torch import Tensor
 from .fcn import FCN
+
+class ScaleupEmbedding(nn.Module):
+    """
+    Learnable embedding from seq_len x input_dim to (seq_len/patch_size) x out_dim
+    """
+    def __init__(
+        self, input_dim, out_dim, patch_size
+    ):
+        super().__init__() # input shape is (batch_size, seq_len, input_dim)
+        self.patch_size = patch_size
+        self.e = nn.Parameter( torch.randn(out_dim, input_dim, patch_size))
+
+    def forward(self, x):
+        return F.conv1d(x.transpose(1,2), self.e, bias=None, stride=self.patch_size).transpose(1,2)
+
 
 class OutputReducer(nn.Module):
     def __init__(self):
@@ -104,6 +120,15 @@ class TransformerEncoder(nn.Module):
     """
     def __init__(self, num_layers, d_model, nhead, dim_feedforward, args, ch, input_dim, num_outputs, dropout=0.1, reducer_type="fc"):
         super(TransformerEncoder, self).__init__()
+        if args.embedding_type == "scaleup":
+            self.embedding = ScaleupEmbedding(d_model, args.scaleup_dim, 1)
+            d_model = args.scaleup_dim
+            input_dim = args.scaleup_dim
+        elif args.embedding_type == "none":
+            self.embedding = nn.Identity()
+        else:
+            raise NameError("Specify a valid embedding type in [scaleup]")
+        
         if args.pos_encoder_type == "absolute":
             self.pos_encoder = PositionalEncoding(d_model, dropout)
         elif args.pos_encoder_type == "learned":
@@ -124,18 +149,22 @@ class TransformerEncoder(nn.Module):
             bias=args.bias,
             )
         elif reducer_type == "linear":
-            self.reducer = nn.Linear(ch * input_dim, num_outputs)
+            self.reducer = nn.Linear(args.s**args.num_layers * input_dim, num_outputs)
         elif reducer_type == "none":
             self.reducer = OutputReducer()
         else:
             raise NameError("Specify a valid reducer type in [fc, linear, none]")
         
     def forward(self, src, src_mask=None):
-        src = src.permute(2,0,1)
+        src = src.permute(0,2,1)
+        src = self.embedding(src)
+        # src = src.permute(0,2,1)
+        src = src.permute(1,0,2)
         src = self.pos_encoder(src)
         for layer in self.layers:
             src = layer(src, src_mask)
         src = src.permute(1,2,0)
         src = src.flatten(1)
+
         src = self.reducer(src)
         return src

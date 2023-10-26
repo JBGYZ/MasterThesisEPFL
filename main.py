@@ -1,6 +1,8 @@
 import sys
 import argparse
 import time
+import re
+import pickle
 from datetime import datetime
 import math
 from functools import partial
@@ -12,7 +14,7 @@ import torch.utils.data as data_utils
 from torch.utils.data import TensorDataset, DataLoader, Subset
 from torch import Tensor
 import torch.nn.functional as F
-
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from utils import args2train_test_sizes, print_time
@@ -21,7 +23,7 @@ from init import init_fun
 from optim_loss import loss_func, regularize, measure_accuracy, opt_algo
 
 
-def train(args, trainloader, net, criterion, testloader=None):
+def train(args, trainloader, net, criterion, testloader=None, writer=None):
 
     optimizer, scheduler = opt_algo(args, net)
     print(f"Training for {args.epochs} epochs...")
@@ -31,6 +33,12 @@ def train(args, trainloader, net, criterion, testloader=None):
     num_batches = math.ceil(args.ptr / args.batch_size)
     checkpoint_batches = torch.linspace(0, num_batches, 10, dtype=int)
 
+    epochlist = []
+    trainloss = []
+    trainerr = []
+    testerr = []
+    best = dict()
+    best_acc = 0
     for epoch in range(args.epochs):
 
         # layerwise training
@@ -66,9 +74,34 @@ def train(args, trainloader, net, criterion, testloader=None):
                 flush=True
             )
 
+            test_acc = test(args, testloader, net, criterion, print_flag=False)
+            net.train()
+
+            epochlist.append(epoch)
+            trainloss.append(train_loss * args.alpha / (batch_idx + 1))
+            trainerr.append(100 - 100. * correct / total)
+            testerr.append(100 - test_acc)
+            if test_acc > best_acc:
+                best["acc"] = test_acc
+                best["epoch"] = epoch
+                best_acc = test_acc
+
+            if writer is not None:
+                writer.add_scalar("Loss/train", train_loss * args.alpha / (batch_idx + 1), epoch)
+                writer.add_scalar("Accuracy/train", 100. * correct / total, epoch)
+                writer.add_scalar("Accuracy/test", test_acc, epoch)
         scheduler.step()
 
-
+    out = {
+        "args": args,
+        "epoch": epochlist,
+        "trainloss": trainloss,
+        "trainerr": trainerr,
+        "testerr": testerr,
+        "best": best
+    }
+    with open(args.pickle, "wb") as handle:
+        pickle.dump(out, handle)
 
 def test(args, testloader, net, criterion, print_flag=True):
 
@@ -220,7 +253,7 @@ def main():
     # define train and test sets sizes
 
     args.ptr, args.pte = args2train_test_sizes(args)
-
+    print(f"Train size: {args.ptr}, Test size: {args.pte}")
 
     torch.set_default_dtype(torch.float32)
 
@@ -231,8 +264,17 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Total Parameters: {total_params}")
 
+    args_string = ' '.join(sys.argv[1:])
+    pattern = r'--(ptr|net|net_layers|nhead|dim_feedforward|scaleup_dim|num_features|pos_encoder_type)\s+([\w.]+)'
+    # Use re.findall to extract matches
+    matches = re.findall(pattern, args_string)
+    # Create a dictionary to store the extracted arguments and their values
+    arguments = dict(matches)
+    # Concatenate the extracted arguments and their values into a string
+    folder_name = "_".join([f"{arg}_{value}" for arg, value in arguments.items()])
 
-    train(args, trainloader, model, criterion, testloader=None)
+    writer = SummaryWriter(log_dir=f'runs/feature{args.num_features}/{folder_name}')
+    train(args, trainloader, model, criterion, testloader=testloader, writer=writer)
     test(args, testloader, model, criterion, print_flag=True)
 
 # Example usage:

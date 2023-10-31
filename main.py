@@ -59,6 +59,7 @@ def train(args, trainloader, net, criterion, testloader=None, writer=None):
 
             loss = criterion(outputs, targets)
             train_loss += loss.detach().item()
+            assert str(train_loss) != "nan", "Loss is nan value!!"
             regularize(loss, net, args.weight_decay, reg_type=args.reg_type)
             loss.backward()
             optimizer.step()

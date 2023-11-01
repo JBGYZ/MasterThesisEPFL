@@ -149,7 +149,7 @@ class TransformerEncoder(nn.Module):
             bias=args.bias,
             )
         elif reducer_type == "linear":
-            self.reducer = nn.Linear(args.s**args.num_layers * input_dim, num_outputs)
+            self.reducer = nn.Linear(input_dim, num_outputs)
         elif reducer_type == "none":
             self.reducer = OutputReducer()
         else:
@@ -163,8 +163,8 @@ class TransformerEncoder(nn.Module):
         src = self.pos_encoder(src)
         for layer in self.layers:
             src = layer(src, src_mask)
-        src = src.permute(1,2,0)
-        src = src.flatten(1)
-
+        src = src.permute(1,2,0) # (batch_size, embedding_dim, seq_len)
+        # src = src.flatten(1)
+        src = src[:, :, 0]  # (batch_size, embedding_dim)
         src = self.reducer(src)
         return src

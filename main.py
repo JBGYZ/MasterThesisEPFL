@@ -3,6 +3,7 @@ import argparse
 import time
 import re
 import pickle
+import copy
 from datetime import datetime
 import math
 from functools import partial
@@ -22,6 +23,76 @@ from models.fcn import FCN
 from init import init_fun
 from optim_loss import loss_func, regularize, measure_accuracy, opt_algo
 
+def weights_evolution(f0, f):
+    def weight_diff_state_dict(d0, d):
+        nd = 0
+        for k in d0:
+            nd += (d0[k] - d[k]).norm() / d0[k].norm()
+        nd /= len(d0)
+        return nd
+
+    nb_layers = len(f0.layers)
+    self_attn_evolution = []
+    fd_evolution = []
+    for nb_layer in range(nb_layers):
+        old_layer_attn_state_dict = f0.layers[nb_layer].self_attn.state_dict()
+        layer_attn_state_dict = f.layers[nb_layer].self_attn.state_dict()
+
+        old_layer_fd_state_dict = f0.layers[nb_layer].feed_forward.state_dict()
+        layer_fd_state_dict = f.layers[nb_layer].feed_forward.state_dict()
+        
+        self_attn_evolution.append(weight_diff_state_dict(old_layer_attn_state_dict, layer_attn_state_dict))
+        fd_evolution.append(weight_diff_state_dict(old_layer_fd_state_dict, layer_fd_state_dict))
+    
+    embedding_evolution =  weight_diff_state_dict(f0.embedding.state_dict(), f.embedding.state_dict())
+    pos_encoder_evolution = weight_diff_state_dict(f0.pos_encoder.state_dict(), f.pos_encoder.state_dict())
+    return embedding_evolution, pos_encoder_evolution, self_attn_evolution, fd_evolution
+
+def calculate_preactivation_selfattn(init_model, trained_model, batch_data):
+    nb_layers = len(init_model.layers)
+    res_list = []
+    intermediate_input = [[] for _ in range(nb_layers)]
+    intermediate_output = [[] for _ in range(nb_layers)]
+    def generate_hook_pre_fn(layer_nb):
+        def hook_pre_fn(module, input):
+            intermediate_input[layer_nb].append(input)
+        return hook_pre_fn
+    def generate_hook_fn(layer_nb):
+        def hook_fn(module, input, output):
+            intermediate_output[layer_nb].append(output)
+        return hook_fn
+
+    for nb_layer in range(nb_layers):
+        trained_model.layers[nb_layer].self_attn.register_forward_pre_hook(generate_hook_pre_fn(nb_layer))
+        trained_model.layers[nb_layer].self_attn.register_forward_hook(generate_hook_fn(nb_layer))
+        trained_model(batch_data)
+        a = init_model.layers[nb_layer].self_attn(*intermediate_input[nb_layer][0])[0]
+        b = intermediate_output[nb_layer][0][0]
+        res_list.append(round(((a - b).norm() / a.norm()).item(), 3))
+    return res_list
+
+def calculate_preactivation_feed_forward(init_model, trained_model, batch_data):
+    nb_layers = len(init_model.layers)
+    res_list = []
+    intermediate_input = [[] for _ in range(nb_layers)]
+    intermediate_output = [[] for _ in range(nb_layers)]
+    def generate_hook_pre_fn(layer_nb):
+        def hook_pre_fn(module, input):
+            intermediate_input[layer_nb].append(input)
+        return hook_pre_fn
+    def generate_hook_fn(layer_nb):
+        def hook_fn(module, input, output):
+            intermediate_output[layer_nb].append(output)
+        return hook_fn
+
+    for nb_layer in range(nb_layers):
+        trained_model.layers[nb_layer].feed_forward.register_forward_pre_hook(generate_hook_pre_fn(nb_layer))
+        trained_model.layers[nb_layer].feed_forward.register_forward_hook(generate_hook_fn(nb_layer))
+        trained_model(batch_data)
+        a = init_model.layers[nb_layer].feed_forward(*intermediate_input[nb_layer][0])
+        b = intermediate_output[nb_layer][0]
+        res_list.append(round(((a - b).norm() / a.norm()).item(), 3))
+    return res_list
 
 def train(args, trainloader, net, criterion, testloader=None, writer=None):
 

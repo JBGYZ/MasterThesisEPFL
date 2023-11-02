@@ -244,26 +244,20 @@ def main():
     parser.add_argument("--auto_regression", type=int, default=0)  # not for now
 
     ### ARCHITECTURES ARGS ###
-    parser.add_argument("--net", type=str, required=True)  # fcn or cnn
+    parser.add_argument("--net", type=str, required=True)  # transformer
     parser.add_argument("--random_features", type=int, default=0)
 
     ## Nets params ##
     parser.add_argument("--width", type=int, default=64)
     parser.add_argument("--net_layers", type=int, default=3)
-    parser.add_argument("--filter_size", type=int, default=2)
-    parser.add_argument("--stride", type=int, default=2)
     parser.add_argument("--batch_norm", type=int, default=0)
-    parser.add_argument(
-        "--bias", type=int, default=1, help="for some archs, controls bias presence"
-    )
+
 
     ## Transformer params ##
     parser.add_argument("--pos_encoder_type", type=str, default="absolute")
     parser.add_argument("--nhead", type=int, default=4)
     parser.add_argument("--dim_feedforward", type=int, default=256)
     parser.add_argument("--reducer_type", type=str, default="fc")
-    parser.add_argument("--reducer_layers", type=int, default=1)
-    parser.add_argument("--reducer_size", type=int, default=64)
     parser.add_argument("--embedding_type", type=str, default="none")
     parser.add_argument("--scaleup_dim", type=int, default=64)
 

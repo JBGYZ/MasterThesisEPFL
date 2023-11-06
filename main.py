@@ -35,8 +35,8 @@ def weights_evolution(f0, f):
     self_attn_evolution = []
     fd_evolution = []
     for nb_layer in range(nb_layers):
-        old_layer_attn_state_dict = f0.layers[nb_layer].self_attn.state_dict()
-        layer_attn_state_dict = f.layers[nb_layer].self_attn.state_dict()
+        old_layer_attn_state_dict ={key: f0.layers[nb_layer].self_attn.state_dict()[key] for key in ['in_proj_weight', 'out_proj.weight']}
+        layer_attn_state_dict ={key: f.layers[nb_layer].self_attn.state_dict()[key] for key in ['in_proj_weight', 'out_proj.weight']}
 
         old_layer_fd_state_dict = f0.layers[nb_layer].feed_forward.state_dict()
         layer_fd_state_dict = f.layers[nb_layer].feed_forward.state_dict()

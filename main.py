@@ -111,14 +111,6 @@ def train(args, trainloader, net, criterion, testloader=None, writer=None):
     best = dict()
     best_acc = 0
     for epoch in range(args.epochs):
-
-        # layerwise training
-        if epoch % (args.epochs // args.net_layers + 1) == 0:
-            if 'layerwise' in args.net:
-                l = epoch // (args.epochs // args.net_layers + 1)
-                net.init_layerwise_(l)
-                print(f'Layer-wise training up to layer {l}.', flush=True)
-
         net.train()
         train_loss = 0
         correct = 0

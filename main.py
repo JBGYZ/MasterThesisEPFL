@@ -360,7 +360,7 @@ def main():
     print(f"Total Parameters: {total_params}")
 
     args_string = ' '.join(sys.argv[1:])
-    pattern = r'--(ptr|net|net_layers|nhead|dim_feedforward|scaleup_dim|num_features|lr|optim)\s+([\w.]+)'
+    pattern = r'--(ptr|net_layers|nhead|dim_feedforward|scaleup_dim|num_features|lr|optim)\s+([\w.]+)'
     # Use re.findall to extract matches
     matches = re.findall(pattern, args_string)
     # Create a dictionary to store the extracted arguments and their values

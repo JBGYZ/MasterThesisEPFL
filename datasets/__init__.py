@@ -3,7 +3,7 @@ from .hierarchical import HierarchicalDataset
 from .parity import ParityDataset
 
 
-def dataset_initialization(args):
+def dataset_initialization(args) -> (torch.utils.data.Dataset, torch.utils.data.Dataset, int, int):
     """
     Initialize train and test loaders for chosen dataset and transforms.
     :param args: parser arguments (see main.py)

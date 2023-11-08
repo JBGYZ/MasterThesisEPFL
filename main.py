@@ -29,7 +29,7 @@ def weights_evolution(f0, f):
         for k in d0:
             nd += (d0[k] - d[k]).norm() / d0[k].norm()
         nd /= len(d0)
-        return nd
+        return nd.detach().item()
 
     nb_layers = len(f0.layers)
     self_attn_evolution = []
@@ -46,7 +46,7 @@ def weights_evolution(f0, f):
     
     embedding_evolution =  weight_diff_state_dict(f0.embedding.state_dict(), f.embedding.state_dict())
     pos_encoder_evolution = weight_diff_state_dict(f0.pos_encoder.state_dict(), f.pos_encoder.state_dict())
-    return embedding_evolution, pos_encoder_evolution, self_attn_evolution, fd_evolution
+    return {"embedding_evolution" : embedding_evolution, "pos_encoder_evolution" :pos_encoder_evolution, "self_attn_evolution": self_attn_evolution, "fd_evolution": fd_evolution}
 
 def calculate_preactivation_selfattn(init_model, trained_model, batch_data):
     nb_layers = len(init_model.layers)

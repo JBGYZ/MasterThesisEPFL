@@ -98,20 +98,13 @@ def calculate_preactivation_feed_forward(init_model, trained_model, batch_data):
 def calculate_evolution(args, model, initial_net, trainloader, print_flag=True):
         model.eval()
         initial_net.eval()
-
-        res_selfattn = []
-        res_feed_forward = []
-        for batch_data, _ in iter(trainloader):
-            res_selfattn.append(calculate_preactivation_selfattn(initial_net, model, batch_data))
-            res_feed_forward.append(calculate_preactivation_feed_forward(initial_net, model, batch_data))
-        res_selfattn = np.array(res_selfattn)
-        res_selfattn = np.mean(res_selfattn, axis=0)
-        res_feed_forward = np.array(res_feed_forward)
-        res_feed_forward = np.mean(res_feed_forward, axis=0)
-
+        batch_data = next(iter(trainloader))[0].to(args.device)
+        res_selfattn = calculate_preactivation_selfattn(initial_net, model, batch_data)
+        res_feed_forward = calculate_preactivation_feed_forward(initial_net, model, batch_data)
         out = { "weight_evolution": weights_evolution(initial_net, model),
                "self_attn_evolution": res_selfattn,
-               "feed_forward_evolution": res_feed_forward,}
+                "feed_forward_evolution": res_feed_forward,
+            }
         with open(args.pickle, 'ab+') as handle:
             pickle.dump(out,handle)
 

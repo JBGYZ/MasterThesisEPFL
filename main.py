@@ -130,6 +130,11 @@ def train(args, trainloader, net, criterion, testloader=None, writer=None):
             correct, total = measure_accuracy(args, outputs, targets, correct, total)
         avg_epoch_time = (time.time() - start_time) / (epoch + 1)
 
+        if (train_loss/ (batch_idx + 1)) < args.zero_loss_threshold and args.loss == 'cross_entropy':
+            trloss_flag += 1
+        if trloss_flag >= args.zero_loss_epochs:
+            break
+
         if epoch % 50 == 0:
             print(
                 f"[Train epoch {epoch+1} / {args.epochs}, {print_time(avg_epoch_time)}/epoch, ETA: {print_time(avg_epoch_time * (args.epochs - epoch - 1))}]"

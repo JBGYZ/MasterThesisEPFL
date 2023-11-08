@@ -17,6 +17,7 @@ from torch import Tensor
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import numpy as np
 
 from utils import args2train_test_sizes, print_time
 from models.fcn import FCN
@@ -94,6 +95,31 @@ def calculate_preactivation_feed_forward(init_model, trained_model, batch_data):
         res_list.append(round(((a - b).norm() / a.norm()).item(), 3))
     return res_list
 
+def calculate_evolution(args, model, initial_net, trainloader, print_flag=True):
+        model.eval()
+        initial_net.eval()
+
+        res_selfattn = []
+        res_feed_forward = []
+        for batch_data, _ in iter(trainloader):
+            res_selfattn.append(calculate_preactivation_selfattn(initial_net, model, batch_data))
+            res_feed_forward.append(calculate_preactivation_feed_forward(initial_net, model, batch_data))
+        res_selfattn = np.array(res_selfattn)
+        res_selfattn = np.mean(res_selfattn, axis=0)
+        res_feed_forward = np.array(res_feed_forward)
+        res_feed_forward = np.mean(res_feed_forward, axis=0)
+
+        out = { "weight_evolution": weights_evolution(initial_net, model),
+               "self_attn_evolution": res_selfattn,
+               "feed_forward_evolution": res_feed_forward,}
+        with open(args.pickle, 'ab+') as handle:
+            pickle.dump(out,handle)
+
+        if print_flag:
+            print("weight evolution: ", weights_evolution(initial_net, model))
+            print("Self-attention pre-activation mean: ", res_selfattn)
+            print("Feed-forward pre-activation mean: ", res_feed_forward)
+        
 def train(args, trainloader, net, criterion, testloader=None, writer=None):
 
     optimizer, scheduler = opt_algo(args, net)
@@ -110,6 +136,8 @@ def train(args, trainloader, net, criterion, testloader=None, writer=None):
     testerr = []
     best = dict()
     best_acc = 0
+    trloss_flag = 0
+
     for epoch in range(args.epochs):
         net.train()
         train_loss = 0
@@ -324,11 +352,15 @@ def main():
 
     trainloader, testloader, model = init_fun(args)
 
+    initial_net = copy.deepcopy(model)
+    initial_net.load_state_dict(model.state_dict())
+
     total_params = sum(p.numel() for p in model.parameters())
+    args.total_params = total_params
     print(f"Total Parameters: {total_params}")
 
     args_string = ' '.join(sys.argv[1:])
-    pattern = r'--(ptr|net|net_layers|nhead|dim_feedforward|scaleup_dim|num_features|pos_encoder_type)\s+([\w.]+)'
+    pattern = r'--(ptr|net|net_layers|nhead|dim_feedforward|scaleup_dim|num_features|lr|optim)\s+([\w.]+)'
     # Use re.findall to extract matches
     matches = re.findall(pattern, args_string)
     # Create a dictionary to store the extracted arguments and their values
@@ -339,6 +371,7 @@ def main():
     writer = SummaryWriter(log_dir=f'runs/feature{args.num_features}/{folder_name}')
     train(args, trainloader, model, criterion, testloader=testloader, writer=writer)
     test(args, testloader, model, criterion, print_flag=True)
+    calculate_evolution(args, model, initial_net, trainloader, print_flag=True)
 
 # Example usage:
 if __name__ == "__main__":

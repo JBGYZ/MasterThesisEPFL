@@ -10,7 +10,7 @@ def unpickle(file):
         dict = pickle.load(fo)
     return dict
 
-def init_fun(args):
+def init_fun(args) -> (torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.nn.Module):
     """
         Initialize dataset and architecture.
     """

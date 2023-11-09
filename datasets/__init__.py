@@ -1,5 +1,5 @@
 import torch
-from .hierarchical import HierarchicalDataset
+from .hierarchical import RandomHierarchyModel
 from .parity import ParityDataset
 
 
@@ -32,36 +32,22 @@ def dataset_initialization(args) -> (torch.utils.data.Dataset, torch.utils.data.
             # return x * mask, x
 
     if args.dataset == 'hier1':
-        trainset = HierarchicalDataset(
-            num_features=args.num_features,
-            m=args.m,  # features multiplicity
+        whole_set =     RandomHierarchyModel(num_features=args.num_features,
+            num_classes=args.num_classes,
+            num_synonyms=args.m,
+            tuple_size=args.s,	# size of the low-level representations
             num_layers=args.num_layers,
-            num_classes=nc,
-            input_format=args.input_format,
+            seed_rules=args.seed_init,
+            seed_sample=1,
+            train_size=args.ptr,
+            test_size=args.pte,
+            input_format='onehot',
             whitening=args.whitening,
-            seed=args.seed_init,
-            train=True,
-            transform=transform,
-            testsize=args.pte,
-            memory_constraint= 10 * (args.ptr + args.pte)
-        )
-
-        if args.pte:
-            testset = HierarchicalDataset(
-                num_features=args.num_features,
-                m=args.m,  # features multiplicity
-                num_layers=args.num_layers,
-                num_classes=nc,
-                input_format=args.input_format,
-                whitening=args.whitening,
-                seed=args.seed_init,
-                train=False,
-                transform=transform,
-                testsize=args.pte,
-                memory_constraint= 10 * (args.ptr + args.pte)
-            )
-        else:
-            testset = None
+            transform=transform,)
+        # Created using indices from 0 to train_size.
+        trainset = torch.utils.data.Subset(whole_set, range(args.ptr))
+        # Created using indices from train_size to train_size + test_size.
+        testset = torch.utils.data.Subset(whole_set, range(args.ptr, args.ptr + args.pte))
 
     elif args.dataset == 'parity':
 

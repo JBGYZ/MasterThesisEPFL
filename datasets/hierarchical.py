@@ -6,222 +6,169 @@ from itertools import *
 import random
 import numpy as np
 
-from .utils import unique, dec2bin
+from .utils import unique, dec2bin, dec2base
 
 
-def hierarchical_features(num_features, num_layers, m, num_classes, seed=0):
+def sample_rules( v, n, m, s, L, seed=42):
+        """
+        Sample random rules for a random hierarchy model.
+
+        Args:
+            v: The number of values each variable can take (vocabulary size, int).
+            n: The number of classes (int).
+            m: The number of synonymic lower-level representations (multiplicity, int).
+            s: The size of lower-level representations (int).
+            L: The number of levels in the hierarchy (int).
+            seed: Seed for generating the rules.
+
+        Returns:
+            A dictionary containing the rules for each level of the hierarchy.
+        """
+        random.seed(seed)
+        tuples = list(product(*[range(v) for _ in range(s)]))
+
+        rules = {}
+        rules[0] = torch.tensor(
+                random.sample( tuples, n*m)
+        ).reshape(n,m,-1)
+        for i in range(1, L):
+            rules[i] = torch.tensor(
+                    random.sample( tuples, v*m)
+            ).reshape(v,m,-1)
+
+        return rules
+
+
+def sample_data_from_rules(samples, rules, n, m, s, L):
     """
-    Build hierarchy of features.
+    Create data of the Random Hierarchy Model starting from a set of rules and the sampled indices.
 
-    :param num_features: number of features to choose from at each layer (short: `n`).
-    :param num_layers: number of layers in the hierarchy (short: `l`)
-    :param m: features multiplicity (number of ways in which a feature can be made from sub-feat.)
-    :param num_classes: number of different classes
-    :param seed: sampling sub-features seed
-    :return: features hierarchy as a list of length num_layers
+    Args:
+        samples: A tensor of size [batch_size, I], with I from 0 to max_data-1, containing the indices of the data to be sampled.
+        rules: A dictionary containing the rules for each level of the hierarchy.
+        n: The number of classes (int).
+        m: The number of synonymic lower-level representations (multiplicity, int).
+        s: The size of lower-level representations (int).
+        L: The number of levels in the hierarchy (int).
+
+    Returns:
+        A tuple containing the inputs and outputs of the model.
     """
-    random.seed(seed)
-    features = [torch.arange(num_classes)]
-    for l in range(num_layers):
-        previous_features = features[-1].flatten()
-        features_set = list(set([i.item() for i in previous_features]))
-        num_layer_features = len(features_set)
-        # new_features = list(combinations(range(num_features), 2))
-        new_features = list(product(range(num_features), range(num_features)))
-        assert (
-            len(new_features) >= m * num_layer_features
-        ), "Not enough features to choose from!!"
-        random.shuffle(new_features)
-        new_features = new_features[: m * num_layer_features]
-        new_features = list(sum(new_features, ()))  # tuples to list
+    max_data = n * m ** ((s**L-1)//(s-1))
+    data_per_hl = max_data // n 	# div by num_classes to get number of data per class
 
-        new_features = torch.tensor(new_features)
-        new_features = new_features.reshape(-1, m, 2)  # [n_features h-1, m, 2]
+    high_level = samples.div(data_per_hl, rounding_mode='floor')	# div by data_per_hl to get class index (run in range(n))
+    low_level = samples % data_per_hl					# compute remainder (run in range(data_per_hl))
 
-        # here new_features are ordered as what makes a 2, what makes a 1 etc...]
+    labels = high_level	# labels are the classes (features of highest level)
+    features = labels		# init input features as labels (rep. size 1)
+    size = 1
 
-        # map features to indices
-        feature_to_index = dict([(e, i) for i, e in enumerate(features_set)])
+    for l in range(L):
 
-        indices = [feature_to_index[f.item()] for f in previous_features]
+        choices = m**(size)
+        data_per_hl = data_per_hl // choices	# div by num_choices to get number of data per high-level feature
 
-        new_features = new_features[indices]
-        features.append(new_features)
-    return features
+        high_level = low_level.div( data_per_hl, rounding_mode='floor')	# div by data_per_hl to get high-level feature index (1 index in range(m**size))
+        high_level = dec2base(high_level, m, length=size).squeeze()	# convert to base m (size indices in range(m), squeeze needed if index already in base m)
+
+        features = rules[l][features, high_level]	        		# apply l-th rule to expand to get features at the lower level (tensor of size (batch_size, size, s))
+        features = features.flatten(start_dim=1)				# flatten to tensor of size (batch_size, size*s)
+        size *= s								# rep. size increases by s at each level
+
+        low_level = low_level % data_per_hl				# compute remainder (run in range(data_per_hl))
+
+    return features, labels
 
 
-def features_to_data(features, m, num_classes, num_layers, samples_per_class, seed=0, seed_reset_layer=42):
+class RandomHierarchyModel(Dataset):
     """
-    Build hierarchical dataset from features hierarchy.
-
-    :param features: hierarchy of features
-    :param m: features multiplicity (number of ways in which a feature can be made from sub-feat.)
-    :param num_classes: number of different classes
-    :param num_layers: number of layers in the hierarchy (short: `l`)
-    :param samples_per_class: self-expl.
-    :param seed: controls randomness in sampling
-    :return: dataset {x, y}
-    """
-
-    np.random.seed(seed)
-    x = features[-1].reshape(num_classes, *sum([(m, 2) for _ in range(num_layers)], ())) # [nc, m, 2, m, 2, ...]
-    y = torch.arange(num_classes)[None].repeat(samples_per_class, 1).t().flatten()
-
-    indices = []
-    for l in range(num_layers):
-
-        if l != 0:
-            # indexing the left AND right sub-features (i.e. dimensions of size 2 in x)
-            # Repeat is there such that higher level features are chosen consistently for a give data-point
-            left_right = (
-                torch.arange(2)[None]
-                .repeat(2 ** (num_layers - 2), 1)
-                .reshape(2 ** (num_layers - l - 1), -1)
-                .t()
-                .flatten()
-            )
-            left_right = left_right[None].repeat(samples_per_class * num_classes, 1)
-            indices.append(left_right)
-
-        # randomly choose sub-features
-        # TODO: to avoid resampling, enumerate all sub-features and only later randomize. Too large tensor for memory though.
-        # (for the moment, this is solved by resampling + filtering unique samples.)
-        if l >= seed_reset_layer:
-            np.random.seed(seed + 42 + l)
-        random_features = np.random.choice(
-            range(m), size=(samples_per_class * num_classes, 2 ** l)
-        ).repeat(2 ** (num_layers - l - 1), 1)
-        indices.append(torch.tensor(random_features))
-
-    yi = y[:, None].repeat(1, 2 ** (num_layers - 1))
-
-    x = x[tuple([yi, *indices])].flatten(1)
-
-    return x, y
-
-
-class HierarchicalDataset(Dataset):
-    """
-    Hierarchical dataset.
+    Implement the Random Hierarchy Model (RHM) as a PyTorch dataset.
     """
 
     def __init__(
-        self,
-        num_features=8,
-        m=2,  # features multiplicity
-        num_layers=2,
-        num_classes=2,
-        seed=0,
-        seed_traintest_split=0,
-        train=True,
-        input_format='onehot',
-        whitening=0,
-        transform=None,
-        testsize=-1,
-        memory_constraint=5e5,
-        seed_reset_layer=42,
-        unique_datapoints=1
+            self,
+            num_features=8,
+            num_classes=2,
+            num_synonyms=2,
+            tuple_size=2,	# size of the low-level representations
+            num_layers=2,
+            seed_rules=0,
+            seed_sample=1,
+            train_size=-1,
+            test_size=0,
+            input_format='onehot',
+            whitening=0,
+            transform=None,
     ):
-        assert testsize or train, "testsize must be larger than zero when generating a test set!"
-        torch.manual_seed(seed)
+
         self.num_features = num_features
-        self.m = m  # features multiplicity
+        self.num_synonyms = num_synonyms 
         self.num_layers = num_layers
         self.num_classes = num_classes
-        Pmax = m ** (2 ** num_layers - 1) * num_classes
+        self.tuple_size = tuple_size
 
+        rules = sample_rules( num_features, num_classes, num_synonyms, tuple_size, num_layers, seed=seed_rules)
+ 
+        max_data = num_classes * num_synonyms ** ((tuple_size ** num_layers - 1) // (tuple_size - 1))
+        assert max_data < 1e19, "dataset size cannot be represented with int64!! Parameters too large! Please open a github issue if you need a solution."
 
-        samples_per_class = min(10 * Pmax, int(memory_constraint)) # constrain dataset size for memory budget
+        if train_size == -1:
 
-        features = hierarchical_features(
-            num_features, num_layers, m, num_classes, seed=seed
+            samples = torch.arange( max_data)
+
+        else:
+
+            test_size = min( test_size, max_data-train_size)
+
+            random.seed(seed_sample)
+            samples = torch.tensor( random.sample( range(max_data), train_size+test_size))
+
+        self.features, self.labels = sample_data_from_rules(
+            samples, rules, num_classes, num_synonyms, tuple_size, num_layers
         )
-        self.x, self.targets = features_to_data(
-            features, m, num_classes, num_layers, samples_per_class=samples_per_class, seed=seed, seed_reset_layer=seed_reset_layer
-        )
 
-        if unique_datapoints:
-            self.x, unique_indices = unique(self.x, dim=0)
-            self.targets = self.targets[unique_indices]
-
-        # encode input pairs instead of features
-        if "pairs" in input_format:
-            self.x = pairing_features(self.x, num_features)
 
         if 'onehot' not in input_format:
             assert not whitening, "Whitening only implemented for one-hot encoding"
 
-        if "binary" in input_format:
-            self.x = dec2bin(self.x)
-            self.x = self.x.permute(0, 2, 1)
-        elif "long" in input_format:
-            self.x = self.x.long() + 1
-        elif "decimal" in input_format:
-            self.x = ((self.x[:, None] + 1) / num_features - 1) * 2
-        elif "onehot" in input_format:
-            self.x = F.one_hot(self.x.long()).float()
-            self.x = self.x.permute(0, 2, 1)
+	# TODO: implement one-hot encoding of s-tuples
+        if 'onehot' in input_format:
 
+            self.features = F.one_hot(
+                self.features.long(),
+                num_classes=num_features if 'tuples' not in input_format else num_features ** tuple_size
+            ).float()
+            
             if whitening:
-                inv_sqrt_n = (num_features - 1) ** -.5
-                self.x = self.x * (1 + inv_sqrt_n) - inv_sqrt_n
-            else:
-                exp = int("pairs" in input_format) + 1
-                self.x *= num_features ** exp
+
+                inv_sqrt_norm = (1.-1./num_features) ** -.5
+                self.features = (self.features - 1./num_features) * inv_sqrt_norm
+
+            self.features = self.features.permute(0, 2, 1)
+
+        elif 'long' in input_format:
+            self.features = self.features.long() + 1
+
         else:
             raise ValueError
-
-        if testsize == -1:
-            testsize = min(len(self.x) // 5, 20000)
-
-        g = torch.Generator()
-        g.manual_seed(seed_traintest_split)
-        P = torch.randperm(len(self.targets), generator=g)
-        if train and testsize:
-            P = P[:-testsize]
-        else:
-            P = P[-testsize:]
-
-        self.x, self.targets = self.x[P], self.targets[P]
 
         self.transform = transform
 
     def __len__(self):
-        return len(self.targets)
+        return len(self.labels)
 
     def __getitem__(self, idx):
         """
-        :param idx: sample index
-        :return (torch.tensor, torch.tensor): (sample, label)
-        """
+        Args:
+        	idx: sample index
 
-        x, y = self.x[idx], self.targets[idx]
+        Returns:
+            Feature-label pairs at index            
+        """
+        x, y = self.features[idx], self.labels[idx]
 
         if self.transform:
             x, y = self.transform(x, y)
 
-        # if self.background_noise:
-        #     g = torch.Generator()
-        #     g.manual_seed(idx)
-        #     x += torch.randn(x.shape, generator=g) * self.background_noise
-
         return x, y
-
-def pairs_to_num(xi, n):
-    """
-        Convert one long input with n-features encoding to n^2 pairs encoding.
-    """
-    ln = len(xi)
-    xin = torch.zeros(ln // 2)
-    for ii, xii in enumerate(xi):
-        xin[ii // 2] += xii * n ** (1 - ii % 2)
-    return xin
-
-def pairing_features(x, n):
-    """
-        Batch of inputs from n to n^2 encoding.
-    """
-    xn = torch.zeros(x.shape[0], x.shape[-1] // 2)
-    for i, xi in enumerate(x.squeeze()):
-        xn[i] = pairs_to_num(xi, n)
-    return xn

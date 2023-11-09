@@ -154,6 +154,7 @@ def train(args, trainloader, net, criterion, testloader=None, writer=None):
         if (train_loss/ (batch_idx + 1)) < args.zero_loss_threshold and args.loss == 'cross_entropy':
             trloss_flag += 1
         if trloss_flag >= args.zero_loss_epochs:
+            print(f"Training stopped at epoch {epoch+1} due to vanishing loss.")
             break
 
         if epoch % 50 == 0:

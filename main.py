@@ -248,7 +248,7 @@ def main():
     )
     parser.add_argument("--pte", type=float, default=0.2)
     parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--scale_batch_size", type=int, default=0)
+    parser.add_argument("--cls_token", type=bool, default=False)
 
     parser.add_argument("--background_noise", type=float, default=0)
 

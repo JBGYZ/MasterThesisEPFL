@@ -37,8 +37,8 @@ def dataset_initialization(args) -> (torch.utils.data.Dataset, torch.utils.data.
             num_synonyms=args.m,
             tuple_size=args.s,	# size of the low-level representations
             num_layers=args.num_layers,
-            seed_rules=args.seed_init,
-            seed_sample=1,
+            seed_rules=args.seed_rules,
+            seed_sample=args.seed_sample,
             train_size=args.ptr,
             test_size=args.pte,
             input_format='onehot',

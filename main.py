@@ -236,7 +236,8 @@ def main():
         "--seed_init", type=int, default=0
     )  # seed random-hierarchy-model
     parser.add_argument("--seed_net", type=int, default=-1)  # network initalisation
-    parser.add_argument("--seed_trainset", type=int, default=-1)  # training sample
+    parser.add_argument("--seed_rules", type=int, default=-1)  # dataset rules
+    parser.add_argument("--seed_sample", type=int, default=-1)  # sampling among whole dataset
 
     ### DATASET ARGS ###
     parser.add_argument("--dataset", type=str, required=True)  # hier1 for hierarchical
@@ -324,8 +325,10 @@ def main():
         args.pickle = args.output
 
     # special value -1 to set some equal arguments
-    if args.seed_trainset == -1:
-        args.seed_trainset = args.seed_init
+    if args.seed_rules == -1:
+        args.seed_rules = args.seed_init
+    if args.seed_sample == -1:
+        args.seed_sample = args.seed_init
     if args.seed_net == -1:
         args.seed_net = args.seed_init
     if args.num_classes == -1:

@@ -37,10 +37,10 @@ def init_fun(args) -> (torch.utils.data.DataLoader, torch.utils.data.DataLoader,
     if args.cls_token:
         input_dim += 1
         trainloader = torch.utils.data.DataLoader(
-            trainset, batch_size=args.batch_size, shuffle=True, num_workers=0, collate_fn=custom_collate)
+            trainset, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=custom_collate)
     else:
         trainloader = torch.utils.data.DataLoader(
-            trainset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+            trainset, batch_size=args.batch_size, shuffle=False, num_workers=0)
     if testset:
         if args.cls_token:
             testloader = torch.utils.data.DataLoader(

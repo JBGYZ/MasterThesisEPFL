@@ -79,18 +79,18 @@ def dataset_initialization(args) -> (torch.utils.data.Dataset, torch.utils.data.
     input_dim = trainset[0][0].shape[-1]
     ch = trainset[0][0].shape[-2] if args.input_format != 'long' else 0
 
-    if args.loss == 'hinge':
-        # change to binary labels
-        trainset.targets = 2 * (torch.as_tensor(trainset.targets) >= nc // 2) - 1
-        if testset:
-            testset.targets = 2 * (torch.as_tensor(testset.targets) >= nc // 2) - 1
+    # if args.loss == 'hinge':
+    #     # change to binary labels
+    #     trainset.targets = 2 * (torch.as_tensor(trainset.targets) >= nc // 2) - 1
+    #     if testset:
+    #         testset.targets = 2 * (torch.as_tensor(testset.targets) >= nc // 2) - 1
 
-    P = len(trainset)
-    assert args.ptr <= 32 + P, "ptr is too large!!"
+    # P = len(trainset)
+    # assert args.ptr <= 32 + P, "ptr is too large!!"
 
-    # take random subset of training set
-    torch.manual_seed(args.seed_trainset)
-    perm = torch.randperm(P)
-    trainset = torch.utils.data.Subset(trainset, perm[:args.ptr])
+    # # take random subset of training set
+    # torch.manual_seed(args.seed_trainset)
+    # perm = torch.randperm(P)
+    # trainset = torch.utils.data.Subset(trainset, perm[:args.ptr])
 
     return trainset, testset, input_dim, ch

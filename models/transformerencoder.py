@@ -165,6 +165,7 @@ class TransformerEncoder(nn.Module):
             src = layer(src, src_mask)
         src = src.permute(1,2,0) # (batch_size, embedding_dim, seq_len)
         # src = src.flatten(1)
+        # Pooling over the sequence dimension: output the CLS token
         src = src[:, :, 0]  # (batch_size, embedding_dim)
         src = self.reducer(src)
         return src

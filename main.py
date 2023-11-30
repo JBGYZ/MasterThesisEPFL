@@ -23,6 +23,7 @@ from utils import args2train_test_sizes, print_time
 from models.fcn import FCN
 from init import init_fun
 from optim_loss import loss_func, regularize, measure_accuracy, opt_algo
+from evaluation_func import calculate_synonymy_invariance
 
 def weights_evolution(f0, f):
     def weight_diff_state_dict(d0, d):
@@ -96,22 +97,25 @@ def calculate_preactivation_feed_forward(init_model, trained_model, batch_data):
     return res_list
 
 def calculate_evolution(args, model, initial_net, trainloader, print_flag=True):
-        model.eval()
-        initial_net.eval()
-        batch_data = next(iter(trainloader))[0].to(args.device)
-        res_selfattn = calculate_preactivation_selfattn(initial_net, model, batch_data)
-        res_feed_forward = calculate_preactivation_feed_forward(initial_net, model, batch_data)
-        out = { "weight_evolution": weights_evolution(initial_net, model),
-               "self_attn_evolution": res_selfattn,
-                "feed_forward_evolution": res_feed_forward,
-            }
-        with open(args.pickle, 'ab+') as handle:
-            pickle.dump(out,handle)
+    model.eval()
+    initial_net.eval()
+    batch_data = next(iter(trainloader))[0].to(args.device)
+    res_selfattn = calculate_preactivation_selfattn(initial_net, model, batch_data)
+    res_feed_forward = calculate_preactivation_feed_forward(initial_net, model, batch_data)
+    res_synonymy_invariance = calculate_synonymy_invariance(args, model)
+    out = { "weight_evolution": weights_evolution(initial_net, model),
+            "self_attn_evolution": res_selfattn,
+            "feed_forward_evolution": res_feed_forward,
+            "synonymy_invariance": res_synonymy_invariance
+        }
+    with open(args.pickle, 'ab+') as handle:
+        pickle.dump(out,handle)
 
-        if print_flag:
-            print("weight evolution: ", weights_evolution(initial_net, model))
-            print("Self-attention pre-activation mean: ", res_selfattn)
-            print("Feed-forward pre-activation mean: ", res_feed_forward)
+    if print_flag:
+        print("weight evolution: ", weights_evolution(initial_net, model))
+        print("Self-attention pre-activation mean: ", res_selfattn)
+        print("Feed-forward pre-activation mean: ", res_feed_forward)
+        print("Synonymy invariance: ", res_synonymy_invariance)
         
 def train(args, trainloader, net, criterion, testloader=None, writer=None):
 

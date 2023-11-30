@@ -39,7 +39,7 @@ def sample_rules( v, n, m, s, L, seed=42):
         return rules
 
 
-def sample_data_from_rules(samples, rules, n, m, s, L):
+def sample_data_from_rules(samples, rules, n, m, s, L, reset_layer=-1):
     """
     Create data of the Random Hierarchy Model starting from a set of rules and the sampled indices.
 
@@ -63,20 +63,33 @@ def sample_data_from_rules(samples, rules, n, m, s, L):
     labels = high_level	# labels are the classes (features of highest level)
     features = labels		# init input features as labels (rep. size 1)
     size = 1
+    if reset_layer == -1:
+        reset_layer = L
+    assert reset_layer <= L, "reset_layer must be <= L"
 
-    for l in range(L):
-
+    for l in range(reset_layer):
         choices = m**(size)
         data_per_hl = data_per_hl // choices	# div by num_choices to get number of data per high-level feature
-
         high_level = low_level.div( data_per_hl, rounding_mode='floor')	# div by data_per_hl to get high-level feature index (1 index in range(m**size))
         high_level = dec2base(high_level, m, length=size).squeeze()	# convert to base m (size indices in range(m), squeeze needed if index already in base m)
-
         features = rules[l][features, high_level]	        		# apply l-th rule to expand to get features at the lower level (tensor of size (batch_size, size, s))
         features = features.flatten(start_dim=1)				# flatten to tensor of size (batch_size, size*s)
         size *= s								# rep. size increases by s at each level
-
         low_level = low_level % data_per_hl				# compute remainder (run in range(data_per_hl))
+
+    for l in range(reset_layer, L):
+        choices = m**(size)
+        data_per_hl = data_per_hl // choices	# div by num_choices to get number of data per high-level feature
+        high_level = low_level.div( data_per_hl, rounding_mode='floor')	# div by data_per_hl to get high-level feature index (1 index in range(m**size))
+        high_level = dec2base(high_level, m, length=size).squeeze()	# convert to base m (size indices in range(m), squeeze needed if index already in base m)
+        rand_high_level = torch.randint(0, m, (high_level.shape), dtype=torch.long)
+        features = rules[l][features, rand_high_level]	        		# apply l-th rule to expand to get features at the lower level (tensor of size (batch_size, size, s))
+        features = features.flatten(start_dim=1)				# flatten to tensor of size (batch_size, size*s)
+        size *= s								# rep. size increases by s at each level
+        low_level = low_level % data_per_hl				# compute remainder (run in range(data_per_hl))
+        low_level = low_level % data_per_hl				# compute remainder (run in range(data_per_hl))
+
+        low_level = low_level % data_per_hl				# compute remainder (run in range(data_per_hl))    
 
     return features, labels
 
@@ -100,6 +113,7 @@ class RandomHierarchyModel(Dataset):
             input_format='onehot',
             whitening=0,
             transform=None,
+            reset_layer=-1,
     ):
 
         self.num_features = num_features
@@ -123,9 +137,9 @@ class RandomHierarchyModel(Dataset):
 
             random.seed(seed_sample)
             samples = torch.tensor( random.sample( range(max_data), train_size+test_size))
-
+            
         self.features, self.labels = sample_data_from_rules(
-            samples, rules, num_classes, num_synonyms, tuple_size, num_layers
+            samples, rules, num_classes, num_synonyms, tuple_size, num_layers, reset_layer=reset_layer
         )
 
 

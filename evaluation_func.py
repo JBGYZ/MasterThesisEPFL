@@ -57,7 +57,7 @@ def calculate_synonymy_invariance(args, model):
                 input_format='onehot',
                 whitening=args.whitening,
                 transform=None,
-                reset_layer=reset_layer,
+                reset_layer=-1,
                 )
 
         if args.cls_token:
@@ -79,7 +79,7 @@ def calculate_synonymy_invariance(args, model):
                 input_format='onehot',
                 whitening=args.whitening,
                 transform=None,
-                reset_layer=2,
+                reset_layer=reset_layer,
         )
         if args.cls_token:
             syn_loader = torch.utils.data.DataLoader(

@@ -102,11 +102,12 @@ def calculate_evolution(args, model, initial_net, trainloader, print_flag=True):
     batch_data = next(iter(trainloader))[0].to(args.device)
     res_selfattn = calculate_preactivation_selfattn(initial_net, model, batch_data)
     res_feed_forward = calculate_preactivation_feed_forward(initial_net, model, batch_data)
-    res_synonymy_invariance = calculate_synonymy_invariance(args, model)
+    selfatt_synonymy_invariance, feedforward_synonymy_invariance = calculate_synonymy_invariance(args, model)
     out = { "weight_evolution": weights_evolution(initial_net, model),
             "self_attn_evolution": res_selfattn,
             "feed_forward_evolution": res_feed_forward,
-            "synonymy_invariance": res_synonymy_invariance
+            "selfatt_synonymy_invariance": selfatt_synonymy_invariance,
+            "feedforward_synonymy_invariance": feedforward_synonymy_invariance
         }
     with open(args.pickle, 'ab+') as handle:
         pickle.dump(out,handle)
@@ -115,7 +116,8 @@ def calculate_evolution(args, model, initial_net, trainloader, print_flag=True):
         print("weight evolution: ", weights_evolution(initial_net, model))
         print("Self-attention pre-activation mean: ", res_selfattn)
         print("Feed-forward pre-activation mean: ", res_feed_forward)
-        print("Synonymy invariance: ", res_synonymy_invariance)
+        print("selfatt Synonymy invariance: ", selfatt_synonymy_invariance)
+        print("feedforward Synonymy invariance: ", feedforward_synonymy_invariance)
         
 def train(args, trainloader, net, criterion, testloader=None, writer=None):
 

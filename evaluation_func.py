@@ -89,23 +89,36 @@ def calculate_synonymy_invariance(args, model):
                 syn_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
             
         nb_layers = len(trained_model.layers)
-        res_list = []
 
-        intermediate_original_output = [[] for _ in range(nb_layers)]
-        intermediate_syn_output = [[] for _ in range(nb_layers)]
+        intermediate_selfatt_original_output = [[] for _ in range(nb_layers)]
+        intermediate_selfatt_syn_output = [[] for _ in range(nb_layers)]
 
-        def generate_hook_fn(layer_nb):
+        intermediate_feedforward_original_output = [[] for _ in range(nb_layers)]
+        intermediate_feedforward_syn_output = [[] for _ in range(nb_layers)]
+
+        def selfatt_generate_hook_fn(layer_nb):
             def hook_fn(module, input, output):
-                intermediate_original_output[layer_nb].append(output)
+                intermediate_selfatt_original_output[layer_nb].append(output)
             return hook_fn
 
-        def generate_hook_fn_syn(layer_nb):
+        def selfatt_generate_hook_fn_syn(layer_nb):
             def hook_fn(module, input, output):
-                intermediate_syn_output[layer_nb].append(output)
+                intermediate_selfatt_syn_output[layer_nb].append(output)
+            return hook_fn
+        
+        def feedforward_generate_hook_fn(layer_nb):
+            def hook_fn(module, input, output):
+                intermediate_feedforward_original_output[layer_nb].append(output)
+            return hook_fn
+        
+        def feedforward_generate_hook_fn_syn(layer_nb):
+            def hook_fn(module, input, output):
+                intermediate_feedforward_syn_output[layer_nb].append(output)
             return hook_fn
 
         for nb_layer in range(nb_layers):
-            trained_model.layers[nb_layer].self_attn.register_forward_hook(generate_hook_fn(nb_layer))
+            trained_model.layers[nb_layer].self_attn.register_forward_hook(selfatt_generate_hook_fn(nb_layer))
+            trained_model.layers[nb_layer].feed_forward.register_forward_hook(feedforward_generate_hook_fn(nb_layer))
 
         for batch_idx, (inputs, targets) in enumerate(real_loader):
             if batch_idx >= 3:
@@ -114,7 +127,8 @@ def calculate_synonymy_invariance(args, model):
             trained_model(inputs)
 
         for nb_layer in range(nb_layers):
-            trained_model.layers[nb_layer].self_attn.register_forward_hook(generate_hook_fn_syn(nb_layer))
+            trained_model.layers[nb_layer].self_attn.register_forward_hook(selfatt_generate_hook_fn_syn(nb_layer))
+            trained_model.layers[nb_layer].feed_forward.register_forward_hook(feedforward_generate_hook_fn_syn(nb_layer))
 
         for batch_idx, (inputs, targets) in enumerate(syn_loader):
             if batch_idx >= 3:
@@ -122,11 +136,14 @@ def calculate_synonymy_invariance(args, model):
             inputs, _ = inputs.to(args.device), targets.to(args.device)
             trained_model(inputs)
 
-        res_list = []
+        selfatt_list = []
+        feedforward_list = []
         for nb_layer in range(nb_layers):
-            res_list.append(((intermediate_original_output[nb_layer][0][0] - intermediate_syn_output[nb_layer][0][0]).norm()/(intermediate_original_output[nb_layer][0][0] - intermediate_original_output[nb_layer][1][0]).norm()).item())
-        return res_list
-    res_dict = {}
+            selfatt_list.append(((intermediate_selfatt_original_output[nb_layer][0][0] - intermediate_selfatt_syn_output[nb_layer][0][0]).norm()/(intermediate_selfatt_original_output[nb_layer][0][0] - intermediate_selfatt_original_output[nb_layer][1][0]).norm()).item())
+            feedforward_list.append(((intermediate_feedforward_original_output[nb_layer][0] - intermediate_feedforward_syn_output[nb_layer][0]).norm()/(intermediate_feedforward_original_output[nb_layer][0] - intermediate_feedforward_original_output[nb_layer][1]).norm()).item())
+        return selfatt_list, feedforward_list
+    selfatt_list_dict = {}
+    feedforward_list_dict = {}
     for reset_layer in range(args.num_layers):
-        res_dict[reset_layer] = calculate_synonymy_invariance_single(args, model, reset_layer)
-    return res_dict
+        selfatt_list_dict[reset_layer], feedforward_list_dict[reset_layer] = calculate_synonymy_invariance_single(args, model, reset_layer)
+    return selfatt_list_dict, feedforward_list_dict

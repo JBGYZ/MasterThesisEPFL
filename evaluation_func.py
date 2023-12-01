@@ -96,6 +96,9 @@ def calculate_synonymy_invariance(args, model):
         intermediate_feedforward_original_output = [[] for _ in range(nb_layers)]
         intermediate_feedforward_syn_output = [[] for _ in range(nb_layers)]
 
+        simple_real_output = []
+        simple_syn_output = []
+
         def selfatt_generate_hook_fn(layer_nb):
             def hook_fn(module, input, output):
                 intermediate_selfatt_original_output[layer_nb].append(output)
@@ -124,7 +127,7 @@ def calculate_synonymy_invariance(args, model):
             if batch_idx >= 3:
                 break
             inputs, _ = inputs.to(args.device), targets.to(args.device)
-            trained_model(inputs)
+            simple_real_output.append(trained_model(inputs))
 
         for nb_layer in range(nb_layers):
             trained_model.layers[nb_layer].self_attn.register_forward_hook(selfatt_generate_hook_fn_syn(nb_layer))
@@ -134,16 +137,19 @@ def calculate_synonymy_invariance(args, model):
             if batch_idx >= 3:
                 break
             inputs, _ = inputs.to(args.device), targets.to(args.device)
-            trained_model(inputs)
+            simple_syn_output.append(trained_model(inputs))
 
         selfatt_list = []
         feedforward_list = []
         for nb_layer in range(nb_layers):
             selfatt_list.append(((intermediate_selfatt_original_output[nb_layer][0][0] - intermediate_selfatt_syn_output[nb_layer][0][0]).norm()/(intermediate_selfatt_original_output[nb_layer][0][0] - intermediate_selfatt_original_output[nb_layer][1][0]).norm()).item())
             feedforward_list.append(((intermediate_feedforward_original_output[nb_layer][0] - intermediate_feedforward_syn_output[nb_layer][0]).norm()/(intermediate_feedforward_original_output[nb_layer][0] - intermediate_feedforward_original_output[nb_layer][1]).norm()).item())
-        return selfatt_list, feedforward_list
+        sensitivity_output = ((simple_real_output[0] - simple_syn_output[0]).norm()/(simple_real_output[0] - simple_real_output[1]).norm()).item()
+
+        return selfatt_list, feedforward_list, sensitivity_output
     selfatt_list_dict = {}
     feedforward_list_dict = {}
+    sensitivity_output_dict = {}
     for reset_layer in range(args.num_layers):
-        selfatt_list_dict[reset_layer], feedforward_list_dict[reset_layer] = calculate_synonymy_invariance_single(args, model, reset_layer)
-    return selfatt_list_dict, feedforward_list_dict
+        selfatt_list_dict[reset_layer], feedforward_list_dict[reset_layer], sensitivity_output_dict[reset_layer] = calculate_synonymy_invariance_single(args, model, reset_layer)
+    return selfatt_list_dict, feedforward_list_dict, sensitivity_output_dict

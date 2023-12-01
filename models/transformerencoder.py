@@ -169,3 +169,58 @@ class TransformerEncoder(nn.Module):
         src = src[:, :, 0]  # (batch_size, embedding_dim)
         src = self.reducer(src)
         return src
+    
+class AlbertEncoder(nn.Module):
+    """
+        Transformer encoder module for classification. Two permutations in forward method
+    """
+    def __init__(self, num_layers, d_model, nhead, dim_feedforward, args, ch, input_dim, num_outputs, dropout=0.1, reducer_type="fc"):
+        super(AlbertEncoder, self).__init__()
+        self.num_layers = num_layers
+        if args.embedding_type == "scaleup":
+            self.embedding = ScaleupEmbedding(d_model, args.scaleup_dim, 1)
+            d_model = args.scaleup_dim
+            input_dim = args.scaleup_dim
+        elif args.embedding_type == "none":
+            self.embedding = nn.Identity()
+        else:
+            raise NameError("Specify a valid embedding type in [scaleup]")
+        
+        if args.pos_encoder_type == "absolute":
+            self.pos_encoder = PositionalEncoding(d_model, dropout)
+        elif args.pos_encoder_type == "learned":
+            self.pos_encoder = LearnedPositionalEncoding(d_model)
+        else:  
+            raise NameError("Specify a valid positional encoder type in [absolute, learned]")
+        # Stack multiple encoder layers
+        self.layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
+    
+        if reducer_type == "fc":
+            self.reducer = FCN(
+            num_layers=args.reducer_layers,
+            input_channels=ch * input_dim,
+            h=args.reducer_size,
+            out_dim=num_outputs,
+            bias=args.bias,
+            )
+        elif reducer_type == "linear":
+            self.reducer = nn.Linear(input_dim, num_outputs)
+        elif reducer_type == "none":
+            self.reducer = OutputReducer()
+        else:
+            raise NameError("Specify a valid reducer type in [fc, linear, none]")
+        
+    def forward(self, src, src_mask=None):
+        src = src.permute(0,2,1)
+        src = self.embedding(src)
+        # src = src.permute(0,2,1)
+        src = src.permute(1,0,2)
+        src = self.pos_encoder(src)
+        for _ in range(self.num_layers):
+            src = self.layer(src, src_mask)
+        src = src.permute(1,2,0) # (batch_size, embedding_dim, seq_len)
+        # src = src.flatten(1)
+        # Pooling over the sequence dimension: output the CLS token
+        src = src[:, :, 0]  # (batch_size, embedding_dim)
+        src = self.reducer(src)
+        return src

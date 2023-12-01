@@ -2,7 +2,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from .fcn import FCN
-from .transformerencoder import TransformerEncoder
+from .transformerencoder import TransformerEncoder, AlbertEncoder
 
 
 def model_initialization(args, input_dim, ch):
@@ -39,7 +39,18 @@ def model_initialization(args, input_dim, ch):
             num_outputs=num_outputs,
             reducer_type=args.reducer_type,
         )
-        
+    elif args.net == "albert":
+        net = AlbertEncoder(
+            args=args,
+            num_layers=args.net_layers,
+            d_model=args.num_features,
+            nhead=args.nhead,
+            dim_feedforward=args.dim_feedforward,
+            ch=ch,
+            input_dim=input_dim,
+            num_outputs=num_outputs,
+            reducer_type=args.reducer_type,
+        )        
 
     assert net is not None, "Network architecture not in the list!"
 

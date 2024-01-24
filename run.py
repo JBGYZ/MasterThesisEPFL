@@ -21,7 +21,7 @@ dim_feedforward = 4 * scaleup_dim
 
 
 for ptr_nb in ptr_nb_list:
-    script="""python main.py --pickle /home/guazhang/MasterThesisEPFL/test2/{folder_name}.pkl --optim adam --device cuda --cls_token True --batch_size 128 \
+    script="""python main.py --pickle /to/directory/{folder_name}.pkl --optim adam --device cuda --cls_token True --batch_size 128 \
     --dataset hier1 --m {m} --num_features {num_features} --num_layers {num_layers} --ptr {ptr_nb} --pte {pte_nb} \
     --net albert --net_layers {layer_nb} --nhead {nhead} --dim_feedforward {dim_feedforward} \
     --reducer_type linear --embedding_type scaleup --scaleup_dim {scaleup_dim} \
@@ -53,8 +53,8 @@ for ptr_nb in ptr_nb_list:
     template = \
 """#!/bin/bash -l
 #SBATCH --job-name={job_name}
-#SBATCH --chdir /home/guazhang/MasterThesisEPFL
-#SBATCH --output=/home/guazhang/MasterThesisEPFL/test2/{folder_name}.out
+#SBATCH --chdir /to/directory
+#SBATCH --output=/to/directory/{folder_name}.out
 
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

@@ -165,3 +165,10 @@ cython_debug/
 # pikle
 *.pkl
 runs/
+_runs/
+_testruns/
+*.out
+*.png
+*.txt
+
+events.out.*

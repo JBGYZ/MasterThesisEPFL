@@ -365,7 +365,7 @@ def main():
     print(f"Total Parameters: {total_params}")
 
     args_string = ' '.join(sys.argv[1:])
-    pattern = r'--(ptr|net_layers|nhead|dim_feedforward|scaleup_dim|num_features|num_layers|lr|optim)\s+([\w.]+)'
+    pattern = r'--(ptr|net_layers|nhead|dim_feedforward|scaleup_dim|num_features|num_layers|lr|seed_net|seed_rules|seed_sample|scheduler)\s+([\w.]+)'
     # Use re.findall to extract matches
     matches = re.findall(pattern, args_string)
     # Create a dictionary to store the extracted arguments and their values
@@ -373,10 +373,11 @@ def main():
     # Concatenate the extracted arguments and their values into a string
     folder_name = "_".join([f"{arg}_{value}" for arg, value in arguments.items()])
 
-    writer = SummaryWriter(log_dir=f'runs/feature{args.num_features}/{folder_name}')
+    writer = SummaryWriter(log_dir=f'testruns/num_layers{args.num_layers}feature{args.num_features}/{folder_name}')
     train(args, trainloader, model, criterion, testloader=testloader, writer=writer)
     test(args, testloader, model, criterion, print_flag=True)
-    calculate_evolution(args, model, initial_net, trainloader, print_flag=True)
+    # calculate_evolution(args, model, initial_net, trainloader, print_flag=True)
+
 
 # Example usage:
 if __name__ == "__main__":

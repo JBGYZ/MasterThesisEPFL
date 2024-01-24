@@ -1,4 +1,4 @@
-# MasterThesisEPFL
+# RHM sample complexity
 Sample complexity of transformer models on RHM
 
 ## Run
@@ -9,6 +9,8 @@ python main.py --pickle test --device cpu \
 --reducer_type fc --reducer_layers 1 --reducer_size 128 --width 1024 \
 --epochs 1000 --scheduler none
 ```
+
+Or use run.py file to launch tasks on slurm managed clusters.
 
 ## References
 

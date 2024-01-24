@@ -4,23 +4,13 @@ import time
 import re
 import pickle
 import copy
-from datetime import datetime
 import math
 from functools import partial
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.utils.data as data_utils
-from torch.utils.data import TensorDataset, DataLoader, Subset
-from torch import Tensor
-import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
-import numpy as np
 
 from utils import args2train_test_sizes, print_time
-from models.fcn import FCN
 from init import init_fun
 from optim_loss import loss_func, regularize, measure_accuracy, opt_algo
 from evaluation_func import calculate_synonymy_invariance
